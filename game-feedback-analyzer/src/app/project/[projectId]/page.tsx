@@ -23,10 +23,10 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/builds`)
+    fetch(`/api/builds?projectId=${projectId}`)
       .then((res) => res.json())
       .then((data) => {
-        setBuilds(data.builds ?? []);
+        setBuilds(Array.isArray(data) ? data : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

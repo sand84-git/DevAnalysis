@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 export async function GET() {
-  const projects = await prisma.project.findMany({
+  const raw = await prisma.project.findMany({
     include: {
       builds: { orderBy: { order: 'desc' }, take: 1 },
       tasks: { where: { currentStatus: 'open' } },
@@ -11,7 +11,16 @@ export async function GET() {
     orderBy: { updatedAt: 'desc' },
   });
 
-  return NextResponse.json(projects);
+  const projects = raw.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    buildCount: p._count.builds,
+    openTaskCount: p.tasks.length,
+    latestBuildName: p.builds[0]?.name ?? undefined,
+  }));
+
+  return NextResponse.json({ projects });
 }
 
 export async function POST(req: NextRequest) {

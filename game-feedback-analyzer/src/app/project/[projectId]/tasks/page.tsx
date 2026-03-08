@@ -23,10 +23,10 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/tasks`)
+    fetch(`/api/tasks?projectId=${projectId}`)
       .then((res) => res.json())
       .then((data) => {
-        setTasks(data.tasks ?? []);
+        setTasks(Array.isArray(data) ? data : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

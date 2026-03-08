@@ -39,7 +39,7 @@ export default function ProjectSettingsPage() {
     setSaved(false);
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });

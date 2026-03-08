@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { compareBuildResults } from '@/lib/analysis/cross-build';
 
+export async function GET(req: NextRequest) {
+  const projectId = req.nextUrl.searchParams.get('projectId');
+  if (!projectId) {
+    return NextResponse.json({ error: 'projectId required' }, { status: 400 });
+  }
+
+  const existing = await prisma.crossBuildAnalysis.findUnique({
+    where: { projectId },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ resultJson: null });
+  }
+
+  return NextResponse.json(existing);
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { projectId } = body as { projectId: string };

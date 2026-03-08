@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Upload, FileText } from 'lucide-react';
 
 interface ProjectFormData {
   name: string;
@@ -38,6 +38,52 @@ export function ProjectForm({
     initialData?.categories ?? []
   );
   const [newCategory, setNewCategory] = useState('');
+  const [fileName, setFileName] = useState<string | null>(
+    initialData?.directionDoc ? '기존 문서 있음' : null
+  );
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
+
+  const handleFile = useCallback(
+    (file: File) => {
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+        alert('.txt 또는 .md 파일만 업로드할 수 있습니다.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setDirectionDoc(text);
+        setFileName(file.name);
+      };
+      reader.readAsText(file);
+    },
+    [setDirectionDoc]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    },
+    [handleFile]
+  );
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveFile = () => {
+    setDirectionDoc('');
+    setFileName(null);
+  };
 
   const handleAddCategory = () => {
     const trimmed = newCategory.trim();
@@ -81,14 +127,47 @@ export function ProjectForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="directionDoc">기획 방향 문서</Label>
-        <Textarea
-          id="directionDoc"
-          value={directionDoc}
-          onChange={(e) => setDirectionDoc(e.target.value)}
-          placeholder="게임의 핵심 기획 방향, 목표 경험, 타겟 유저 등을 기술하세요. AI 분석 시 기획 의도와 유저 피드백의 갭 분석에 활용됩니다."
-          rows={8}
+        <Label>기획 방향 문서</Label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".txt,.md"
+          onChange={handleFileInputChange}
+          className="hidden"
         />
+        {fileName ? (
+          <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-4 py-3">
+            <FileText className="size-5 shrink-0 text-accent1" />
+            <span className="flex-1 truncate text-sm">{fileName}</span>
+            <button
+              type="button"
+              onClick={handleRemoveFile}
+              className="shrink-0 text-muted-foreground hover:text-danger"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        ) : (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-8 transition-colors ${
+              isDragOver
+                ? 'border-accent1 bg-accent1/5'
+                : 'border-border hover:border-accent1/50 hover:bg-muted/30'
+            }`}
+          >
+            <Upload className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              .txt 또는 .md 파일을 드래그하거나 클릭하여 업로드
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

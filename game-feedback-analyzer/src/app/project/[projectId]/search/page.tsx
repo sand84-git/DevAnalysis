@@ -35,7 +35,10 @@ export default function SearchPage() {
       }
       setLoading(true);
       try {
-        const searchParams = new URLSearchParams({ q: query });
+        const searchParams = new URLSearchParams({
+          q: query,
+          projectId: params.projectId,
+        });
         if (selectedFilters.build)
           searchParams.set('build', selectedFilters.build);
         if (selectedFilters.category)
@@ -45,9 +48,7 @@ export default function SearchPage() {
         if (selectedFilters.language)
           searchParams.set('language', selectedFilters.language);
 
-        const res = await fetch(
-          `/api/projects/${params.projectId}/search?${searchParams}`
-        );
+        const res = await fetch(`/api/search?${searchParams}`);
         if (res.ok) {
           const data = await res.json();
           setResults(data.results ?? []);

@@ -19,14 +19,11 @@ export default function NewTaskPage() {
   }) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(
-        `/api/projects/${params.projectId}/tasks`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      );
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, projectId: params.projectId }),
+      });
       if (res.ok) {
         const result = await res.json();
         router.push(

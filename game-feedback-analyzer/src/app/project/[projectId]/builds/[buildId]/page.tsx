@@ -40,9 +40,7 @@ export default function BuildDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(
-      `/api/projects/${params.projectId}/builds/${params.buildId}`
-    )
+    fetch(`/api/builds/${params.buildId}`)
       .then((res) => res.json())
       .then((data) => setBuild(data))
       .catch(() => {})
@@ -53,15 +51,17 @@ export default function BuildDetailPage() {
     async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('buildId', params.buildId);
       try {
-        const res = await fetch(
-          `/api/projects/${params.projectId}/builds/${params.buildId}/upload`,
-          { method: 'POST', body: formData }
-        );
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
         if (res.ok) {
           const data = await res.json();
-          setParseResult(data);
-          setDetectedColumns(data.columns ?? []);
+          const pr = data.parseResult;
+          setParseResult(pr);
+          setDetectedColumns(pr?.columns ?? []);
         }
       } catch {
         // Upload not yet implemented

@@ -23,10 +23,10 @@ export default function NewBuildPage() {
   }) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/projects/${params.projectId}/builds`, {
+      const res = await fetch('/api/builds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, projectId: params.projectId }),
       });
       if (res.ok) {
         const result = await res.json();

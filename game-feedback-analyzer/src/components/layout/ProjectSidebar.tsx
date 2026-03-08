@@ -17,7 +17,7 @@ interface ProjectSidebarProps {
 
 const navItems = [
   { label: '빌드 타임라인', icon: GitBranch, path: '' },
-  { label: '대시보드', icon: LayoutDashboard, path: '/dashboard' },
+  { label: '대시보드', icon: LayoutDashboard, path: '/analysis' },
   { label: '피드백 검색', icon: Search, path: '/search' },
   { label: '태스크 관리', icon: ClipboardList, path: '/tasks' },
   { label: '프로젝트 설정', icon: Settings, path: '/settings' },
