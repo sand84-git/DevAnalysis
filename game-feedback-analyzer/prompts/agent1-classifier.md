@@ -40,12 +40,13 @@
 
 반드시 아래 JSON 형식으로 출력하세요:
 
+**중요: 출력에 원문 `text` 필드를 절대 포함하지 마세요. 토큰 절약을 위해 id로만 참조합니다.**
+
 ```json
 {
   "classifiedResponses": [
     {
       "id": "응답 ID",
-      "text": "원문 텍스트",
       "language": "ko",
       "categories": ["카테고리1", "카테고리2"],
       "sentiment": "positive",

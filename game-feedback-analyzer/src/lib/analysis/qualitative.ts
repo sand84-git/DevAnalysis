@@ -123,6 +123,7 @@ export async function runQualitativeAnalysis(
 
     const userAdvocate = await analyzeAsUserAdvocate({
       classificationResult: classification,
+      sentimentAggregation,
       buildId,
       analysisLevel,
     });
@@ -153,11 +154,13 @@ export async function runQualitativeAnalysis(
   const [userAdvocate, designAdvocate] = await Promise.all([
     analyzeAsUserAdvocate({
       classificationResult: classification,
+      sentimentAggregation,
       buildId,
       analysisLevel,
     }),
     analyzeAsDesignAdvocate({
       classificationResult: classification,
+      sentimentAggregation,
       directionDoc: directionDoc ?? '',
       buildId,
       analysisLevel,

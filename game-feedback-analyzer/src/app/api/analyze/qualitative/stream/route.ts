@@ -91,18 +91,20 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Update classified responses
-      for (const classified of result.classification.classifiedResponses) {
-        await prisma.feedbackResponse.update({
-          where: { id: classified.id },
-          data: {
-            categories: JSON.stringify(classified.categories),
-            sentiment: classified.sentiment,
-            confidence: classified.confidence,
-            summary: classified.summary,
-          },
-        });
-      }
+      // Update classified responses (배치 트랜잭션)
+      await prisma.$transaction(
+        result.classification.classifiedResponses.map((classified) =>
+          prisma.feedbackResponse.update({
+            where: { id: classified.id },
+            data: {
+              categories: JSON.stringify(classified.categories),
+              sentiment: classified.sentiment,
+              confidence: classified.confidence,
+              summary: classified.summary,
+            },
+          })
+        )
+      );
 
       // Send final result
       await sendEvent({ stage: 'done', status: 'completed', result });

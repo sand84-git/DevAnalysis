@@ -1,4 +1,4 @@
-import { callClaude, parseJsonResponse } from '@/lib/claude';
+import { callClaude, callLLM, parseJsonResponse } from '@/lib/claude';
 import { logAPICost } from '@/lib/analysis/cost-tracker';
 import { loadPrompt } from '@/lib/analysis/prompt-loader';
 import type {
@@ -31,7 +31,7 @@ export async function synthesizeDeep(
     designAdvocateResult: input.designAdvocateResult ?? null,
   });
 
-  const response = await callClaude(systemPrompt, userMessage, 'opus', {
+  const response = await callClaude(systemPrompt, userMessage, 'sonnet', {
     maxTokens: 8192,
   });
 
@@ -53,7 +53,7 @@ export async function synthesizeQuick(
     classificationResult: input.classificationResult,
   });
 
-  const response = await callClaude(systemPrompt, userMessage, 'opus', {
+  const response = await callLLM(systemPrompt, userMessage, 'grok', {
     maxTokens: 4096,
   });
 

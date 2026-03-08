@@ -1,10 +1,11 @@
 import { callClaude, parseJsonResponse } from '@/lib/claude';
 import { logAPICost } from '@/lib/analysis/cost-tracker';
 import { loadPrompt } from '@/lib/analysis/prompt-loader';
-import type { ClassificationResult, DesignAdvocateResult } from '@/types';
+import type { ClassificationResult, DesignAdvocateResult, Sentiment } from '@/types';
 
 export interface DesignAdvocateInput {
   classificationResult: ClassificationResult;
+  sentimentAggregation: Record<Sentiment, number>;
   directionDoc: string;
   buildId?: string;
   analysisLevel?: string;
@@ -17,7 +18,8 @@ export async function analyzeAsDesignAdvocate(
 
   const userMessage = JSON.stringify({
     categorySummary: input.classificationResult.categorySummary,
-    classifiedResponses: input.classificationResult.classifiedResponses,
+    sentimentAggregation: input.sentimentAggregation,
+    totalResponses: input.classificationResult.classifiedResponses.length,
     directionDoc: input.directionDoc,
   });
 

@@ -1,10 +1,11 @@
-import { callClaude, parseJsonResponse } from '@/lib/claude';
+import { callLLM, parseJsonResponse } from '@/lib/claude';
 import { logAPICost } from '@/lib/analysis/cost-tracker';
 import { loadPrompt } from '@/lib/analysis/prompt-loader';
-import type { ClassificationResult, UserAdvocateResult } from '@/types';
+import type { ClassificationResult, UserAdvocateResult, Sentiment } from '@/types';
 
 export interface UserAdvocateInput {
   classificationResult: ClassificationResult;
+  sentimentAggregation: Record<Sentiment, number>;
   buildId?: string;
   analysisLevel?: string;
 }
@@ -16,10 +17,11 @@ export async function analyzeAsUserAdvocate(
 
   const userMessage = JSON.stringify({
     categorySummary: input.classificationResult.categorySummary,
-    classifiedResponses: input.classificationResult.classifiedResponses,
+    sentimentAggregation: input.sentimentAggregation,
+    totalResponses: input.classificationResult.classifiedResponses.length,
   });
 
-  const response = await callClaude(systemPrompt, userMessage, 'sonnet', {
+  const response = await callLLM(systemPrompt, userMessage, 'grok', {
     maxTokens: 4096,
   });
 

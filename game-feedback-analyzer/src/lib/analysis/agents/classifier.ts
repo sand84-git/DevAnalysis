@@ -1,9 +1,10 @@
-import { callClaude, parseJsonResponse } from '@/lib/claude';
+import { callLLM, parseJsonResponse } from '@/lib/claude';
 import { logAPICost } from '@/lib/analysis/cost-tracker';
 import { loadPrompt } from '@/lib/analysis/prompt-loader';
-import type { ClassificationResult, ClassifiedResponse, Sentiment } from '@/types';
+import type { ClassificationResult, ClassifiedResponse, ClassifiedResponseSlim, Sentiment } from '@/types';
 
 const BATCH_SIZE = 50;
+const CONCURRENCY = 3;
 
 export interface ClassifierInput {
   responses: Array<{ id: string; text: string }>;
@@ -36,17 +37,28 @@ export async function classifyFeedback(
 
   const allClassified: ClassifiedResponse[] = [];
   const allSuggestions: string[] = [];
+  let completedCount = 0;
 
   onProgress?.(0, responses.length);
 
-  for (const batch of batches) {
-    const batchResult = await classifyBatch(
-      { ...input, responses: batch },
-      batch
+  // 최대 CONCURRENCY개 배치를 동시 처리
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const chunk = batches.slice(i, i + CONCURRENCY);
+    const chunkResults = await Promise.all(
+      chunk.map(async (batch) => {
+        const result = await classifyBatch(
+          { ...input, responses: batch },
+          batch
+        );
+        completedCount += batch.length;
+        onProgress?.(completedCount, responses.length);
+        return result;
+      })
     );
-    allClassified.push(...batchResult.classifiedResponses);
-    allSuggestions.push(...batchResult.newCategorySuggestions);
-    onProgress?.(allClassified.length, responses.length);
+    for (const result of chunkResults) {
+      allClassified.push(...result.classifiedResponses);
+      allSuggestions.push(...result.newCategorySuggestions);
+    }
   }
 
   // Merge categorySummary from all classified responses
@@ -57,6 +69,12 @@ export async function classifyFeedback(
     categorySummary,
     newCategorySuggestions: [...new Set(allSuggestions)],
   };
+}
+
+interface SlimClassificationResult {
+  classifiedResponses: ClassifiedResponseSlim[];
+  categorySummary: ClassificationResult['categorySummary'];
+  newCategorySuggestions: string[];
 }
 
 async function classifyBatch(
@@ -70,7 +88,7 @@ async function classifyBatch(
     categories: input.categories,
   });
 
-  const response = await callClaude(systemPrompt, userMessage, 'sonnet', {
+  const response = await callLLM(systemPrompt, userMessage, 'grok', {
     maxTokens: 16384,
   });
 
@@ -80,7 +98,20 @@ async function classifyBatch(
     analysisLevel: input.analysisLevel,
   });
 
-  return parseJsonResponse<ClassificationResult>(response);
+  const slimResult = parseJsonResponse<SlimClassificationResult>(response);
+
+  // text를 input에서 재구성 (API output 토큰 절약)
+  const textMap = new Map(batchResponses.map((r) => [r.id, r.text]));
+  const classifiedResponses: ClassifiedResponse[] = slimResult.classifiedResponses.map((slim) => ({
+    ...slim,
+    text: textMap.get(slim.id) ?? '',
+  }));
+
+  return {
+    classifiedResponses,
+    categorySummary: slimResult.categorySummary,
+    newCategorySuggestions: slimResult.newCategorySuggestions,
+  };
 }
 
 function buildCategorySummary(

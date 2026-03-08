@@ -20,15 +20,20 @@ export type Priority = 'P0' | 'P1' | 'P2' | 'discuss';
 export type TestType = 'field_test' | 'internal' | 'fgt' | 'cbt' | 'soft_launch' | 'other';
 
 // ===== AI 분류 결과 (Agent 1 출력) =====
-export interface ClassifiedResponse {
+// Claude API가 반환하는 슬림 버전 (text 미포함 — 토큰 절약)
+export interface ClassifiedResponseSlim {
   id: string;
-  text: string;
   language: string;
   categories: string[];
   sentiment: Sentiment;
   confidence: number;
   isKeyQuote: boolean;
   summary: string;
+}
+
+// text 재구성 후 내부에서 사용하는 전체 버전
+export interface ClassifiedResponse extends ClassifiedResponseSlim {
+  text: string;
 }
 
 export interface ClassificationResult {
