@@ -44,15 +44,22 @@ export async function POST(req: NextRequest) {
         .map((c) => headers.indexOf(c.name))
         .filter((i) => i !== -1);
 
+  console.log('[Confirm] rows received:', rows.length);
+  console.log('[Confirm] columnMapping:', columnMapping.map((c) => `${c.name}(${c.type})`).join(', '));
+  console.log('[Confirm] textIndices:', textIndices, '→ headers:', textIndices.map((i) => headers[i]));
+
   // 각 row를 FeedbackResponse로 변환
   const responsesData = rows
-    .map((row) => {
+    .map((row, rowIdx) => {
       const textParts = textIndices
         .map((i) => row[i])
         .filter((v) => v != null && String(v).trim() !== '');
       const text = textParts.map(String).join('\n\n');
 
-      if (!text) return null;
+      if (!text) {
+        console.log(`[Confirm] Row ${rowIdx} SKIPPED — raw values at textIndices:`, textIndices.map((i) => row[i]));
+        return null;
+      }
 
       return {
         buildId,
@@ -70,19 +77,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 기존 응답 삭제 후 일괄 생성 (중복 방지)
-  await prisma.feedbackResponse.deleteMany({
-    where: { buildId },
-  });
+  // 기존 응답·분석 삭제 후 일괄 생성 (트랜잭션으로 원자성 보장)
+  const [, , createResult] = await prisma.$transaction([
+    prisma.feedbackResponse.deleteMany({ where: { buildId } }),
+    prisma.buildAnalysis.deleteMany({ where: { buildId } }),
+    prisma.feedbackResponse.createMany({ data: responsesData }),
+  ]);
 
-  // 기존 분석 결과도 초기화
-  await prisma.buildAnalysis.deleteMany({
-    where: { buildId },
-  });
-
-  const result = await prisma.feedbackResponse.createMany({
-    data: responsesData,
-  });
+  const result = createResult;
 
   const skippedCount = rows.length - responsesData.length;
 

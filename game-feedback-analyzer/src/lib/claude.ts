@@ -143,5 +143,50 @@ export function parseJsonResponse<T>(response: ClaudeResponse): T {
     throw new Error('Failed to parse JSON from Claude response');
   }
   const jsonStr = jsonMatch[1] ?? jsonMatch[0];
-  return JSON.parse(jsonStr) as T;
+
+  try {
+    return JSON.parse(jsonStr) as T;
+  } catch {
+    // 잘린 JSON 복구 시도: 닫히지 않은 브래킷/브레이스 닫기
+    const repaired = repairTruncatedJson(jsonStr);
+    return JSON.parse(repaired) as T;
+  }
+}
+
+function repairTruncatedJson(json: string): string {
+  let repaired = json.trim();
+
+  // 마지막 불완전한 문자열 값 제거 (닫히지 않은 따옴표)
+  const lastQuote = repaired.lastIndexOf('"');
+  if (lastQuote > 0) {
+    const before = repaired.slice(0, lastQuote);
+    const quoteCount = (before.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      // 홀수 따옴표 = 닫히지 않은 문자열, 마지막 키-값 쌍 제거
+      const lastComma = repaired.lastIndexOf(',', lastQuote);
+      if (lastComma > 0) {
+        repaired = repaired.slice(0, lastComma);
+      }
+    }
+  }
+
+  // 닫히지 않은 브래킷/브레이스 닫기
+  const opens: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const ch of repaired) {
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') opens.push(ch);
+    if (ch === '}' || ch === ']') opens.pop();
+  }
+
+  while (opens.length > 0) {
+    const open = opens.pop();
+    repaired += open === '{' ? '}' : ']';
+  }
+
+  return repaired;
 }

@@ -17,17 +17,25 @@ export interface StageProgress {
 interface AnalysisProgressProps {
   currentStage: string;
   completedStages: string[];
+  analysisLevel?: 'quick' | 'standard' | 'deep';
   stageProgress?: Record<string, StageProgress>;
   stageStartTimes?: Record<string, number>;
   stageDurations?: Record<string, number>;
 }
 
-const STAGES: AnalysisStage[] = [
+const ALL_STAGES: AnalysisStage[] = [
   { id: 'classify', label: '분류', description: '응답 데이터를 카테고리별로 분류하고 있습니다' },
   { id: 'user_advocate', label: '유저 관점 분석', description: '유저 옹호자 에이전트가 핵심 불만과 매력 요소를 분석합니다' },
   { id: 'design_advocate', label: '기획 관점 분석', description: '기획 옹호자 에이전트가 방향성 갭을 분석합니다' },
   { id: 'synthesis', label: '종합', description: '종합 판관 에이전트가 최종 결론을 도출합니다' },
 ];
+
+// 분석 레벨별 실행 단계
+const STAGES_BY_LEVEL: Record<string, string[]> = {
+  quick: ['classify', 'synthesis'],
+  standard: ['classify', 'user_advocate', 'synthesis'],
+  deep: ['classify', 'user_advocate', 'design_advocate', 'synthesis'],
+};
 
 function formatElapsed(ms: number): string {
   const seconds = Math.floor(ms / 1000);
@@ -60,12 +68,15 @@ function ElapsedTimer({ startTime }: { startTime: number }) {
 export default function AnalysisProgress({
   currentStage,
   completedStages,
+  analysisLevel = 'standard',
   stageProgress,
   stageStartTimes,
   stageDurations,
 }: AnalysisProgressProps) {
-  const totalStages = STAGES.length;
-  const completedCount = completedStages.length;
+  const activeStageIds = STAGES_BY_LEVEL[analysisLevel] ?? STAGES_BY_LEVEL.standard;
+  const stages = ALL_STAGES.filter((s) => activeStageIds.includes(s.id));
+  const totalStages = stages.length;
+  const completedCount = completedStages.filter((s) => activeStageIds.includes(s)).length;
   const progressPercent = (completedCount / totalStages) * 100;
 
   return (
@@ -88,7 +99,7 @@ export default function AnalysisProgress({
 
       {/* Stage list */}
       <div className="space-y-4">
-        {STAGES.map((stage) => {
+        {stages.map((stage) => {
           const isCompleted = completedStages.includes(stage.id);
           const isCurrent = currentStage === stage.id;
           const isPending = !isCompleted && !isCurrent;

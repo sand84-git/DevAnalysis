@@ -36,9 +36,10 @@ export interface StageEvent {
   detail?: string;
   completed?: number;
   total?: number;
+  data?: unknown;
 }
 
-export type OnStageChange = (event: StageEvent) => void;
+export type OnStageChange = (event: StageEvent) => void | Promise<void>;
 
 const ALL_SENTIMENTS: Sentiment[] = [
   'positive',
@@ -94,9 +95,8 @@ export async function runQualitativeAnalysis(
     classifyProgress
   );
 
-  onStageChange?.({ stage: 'classify', status: 'completed' });
-
   const sentimentAggregation = aggregateSentiments(classification);
+  onStageChange?.({ stage: 'classify', status: 'completed', data: { classification, sentimentAggregation } });
 
   // Quick: Agent1 → Agent4-Quick (2 API calls)
   if (analysisLevel === 'quick') {
@@ -108,7 +108,7 @@ export async function runQualitativeAnalysis(
       analysisLevel,
     });
 
-    onStageChange?.({ stage: 'synthesis', status: 'completed' });
+    onStageChange?.({ stage: 'synthesis', status: 'completed', data: { synthesis } });
 
     return {
       classification,
@@ -128,7 +128,7 @@ export async function runQualitativeAnalysis(
       analysisLevel,
     });
 
-    onStageChange?.({ stage: 'user_advocate', status: 'completed' });
+    onStageChange?.({ stage: 'user_advocate', status: 'completed', data: { userAdvocate } });
     onStageChange?.({ stage: 'synthesis', status: 'started' });
 
     const synthesis = await synthesizeDeep({
@@ -137,7 +137,7 @@ export async function runQualitativeAnalysis(
       analysisLevel,
     });
 
-    onStageChange?.({ stage: 'synthesis', status: 'completed' });
+    onStageChange?.({ stage: 'synthesis', status: 'completed', data: { synthesis } });
 
     return {
       classification,
@@ -167,8 +167,8 @@ export async function runQualitativeAnalysis(
     }),
   ]);
 
-  onStageChange?.({ stage: 'user_advocate', status: 'completed' });
-  onStageChange?.({ stage: 'design_advocate', status: 'completed' });
+  onStageChange?.({ stage: 'user_advocate', status: 'completed', data: { userAdvocate } });
+  onStageChange?.({ stage: 'design_advocate', status: 'completed', data: { designAdvocate } });
   onStageChange?.({ stage: 'synthesis', status: 'started' });
 
   const synthesis = await synthesizeDeep({
@@ -178,7 +178,7 @@ export async function runQualitativeAnalysis(
     analysisLevel,
   });
 
-  onStageChange?.({ stage: 'synthesis', status: 'completed' });
+  onStageChange?.({ stage: 'synthesis', status: 'completed', data: { synthesis } });
 
   return {
     classification,

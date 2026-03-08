@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
       description,
       directionDoc,
       categories: categories?.length
-        ? { create: categories.map((c: { name: string; group?: string }, i: number) => ({
-            name: c.name,
-            group: c.group,
+        ? { create: categories.map((c: string | { name: string; group?: string }, i: number) => ({
+            name: typeof c === 'string' ? c : c.name,
+            group: typeof c === 'string' ? undefined : c.group,
             order: i,
           })) }
         : undefined,

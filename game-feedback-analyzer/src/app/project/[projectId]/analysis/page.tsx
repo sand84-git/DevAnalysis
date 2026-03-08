@@ -115,8 +115,29 @@ export default function AnalysisPage({
   const [stageDurations, setStageDurations] = useState<Record<string, number>>({});
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const analyzingRef = useRef(false);
 
-  // Fetch builds list
+  // 컴포넌트 언마운트 시 스트림 정리
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+    };
+  }, []);
+
+  // 분석 중 페이지 이탈 경고 (브라우저 탭 닫기/새로고침)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (analyzingRef.current) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Fetch builds list (초기 로드 시 1회만)
   useEffect(() => {
     async function fetchBuilds() {
       try {
@@ -124,8 +145,8 @@ export default function AnalysisPage({
         if (res.ok) {
           const data: Build[] = await res.json();
           setBuilds(data);
-          if (data.length > 0 && !selectedBuildId) {
-            setSelectedBuildId(data[data.length - 1].id);
+          if (data.length > 0) {
+            setSelectedBuildId((prev) => prev || data[data.length - 1].id);
           }
         }
       } catch {
@@ -135,7 +156,7 @@ export default function AnalysisPage({
       }
     }
     fetchBuilds();
-  }, [projectId, selectedBuildId]);
+  }, [projectId]);
 
   // Fetch build detail when selected build changes
   const fetchBuildDetail = useCallback(async (buildId: string) => {
@@ -146,8 +167,13 @@ export default function AnalysisPage({
         setBuildDetail(data);
 
         if (data.analysis?.qualitativeJson) {
-          const parsed: QualitativeResult = JSON.parse(data.analysis.qualitativeJson);
-          setAnalysisData(parsed);
+          try {
+            const parsed: QualitativeResult = JSON.parse(data.analysis.qualitativeJson);
+            setAnalysisData(parsed);
+          } catch {
+            console.error('[Analysis] Failed to parse qualitativeJson');
+            setAnalysisData(null);
+          }
         } else {
           setAnalysisData(null);
         }
@@ -171,7 +197,11 @@ export default function AnalysisPage({
         if (res.ok) {
           const data = await res.json();
           if (data.resultJson) {
-            setCrossBuildData(JSON.parse(data.resultJson));
+            try {
+              setCrossBuildData(JSON.parse(data.resultJson));
+            } catch {
+              console.error('[Analysis] Failed to parse cross-build resultJson');
+            }
           }
         }
       } catch {
@@ -185,6 +215,7 @@ export default function AnalysisPage({
   const handleStartAnalysis = async () => {
     if (!selectedBuildId) return;
     setAnalyzing(true);
+    analyzingRef.current = true;
     setCompletedStages([]);
     setStageProgress({});
     setStageStartTimes({});
@@ -235,6 +266,8 @@ export default function AnalysisPage({
 
             if (event.stage === 'error') {
               setAnalysisError(event.detail ?? '분석 중 오류가 발생했습니다.');
+              // 오류 발생 시 DB에서 부분 저장된 결과 로드
+              await fetchBuildDetail(selectedBuildId);
               continue;
             }
 
@@ -279,6 +312,7 @@ export default function AnalysisPage({
       }
     } finally {
       setAnalyzing(false);
+      analyzingRef.current = false;
       abortRef.current = null;
     }
   };
@@ -297,7 +331,7 @@ export default function AnalysisPage({
     .map((r) => ({
       quote: r.text,
       sentiment: (r.sentiment ?? 'neutral') as Sentiment,
-      categories: r.categories ? (JSON.parse(r.categories) as string[]) : [],
+      categories: r.categories ? (() => { try { return JSON.parse(r.categories!) as string[]; } catch { return []; } })() : [],
       respondentId: r.id.slice(0, 8),
     })) ?? [];
 
@@ -423,6 +457,7 @@ export default function AnalysisPage({
         <AnalysisProgress
           currentStage={analysisStage}
           completedStages={completedStages}
+          analysisLevel={analysisLevel}
           stageProgress={stageProgress}
           stageStartTimes={stageStartTimes}
           stageDurations={stageDurations}
@@ -431,8 +466,17 @@ export default function AnalysisPage({
 
       {/* Analysis Error */}
       {analysisError && (
-        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {analysisError}
+        <div className="flex items-center justify-between rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{analysisError}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleStartAnalysis}
+            disabled={analyzing}
+            className="ml-3 shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+          >
+            재시도
+          </Button>
         </div>
       )}
 

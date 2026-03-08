@@ -53,11 +53,11 @@ export function ColumnMapper({
         컬럼 유형 설정
       </h4>
       <div className="space-y-3">
-        {columns.map((col) => {
+        {columns.map((col, colIdx) => {
           const typeConfig = columnTypeConfig[col.type];
           return (
             <div
-              key={col.name}
+              key={colIdx}
               className="flex items-center gap-3 rounded-lg border border-border bg-bg/50 p-3"
             >
               <div className="min-w-0 flex-1">

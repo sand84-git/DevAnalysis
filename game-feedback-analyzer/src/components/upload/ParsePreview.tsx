@@ -47,9 +47,9 @@ export function ParsePreview({
         <div>
           <p className="mb-2 text-xs font-medium text-text-lt">컬럼 목록</p>
           <div className="flex flex-wrap gap-1.5">
-            {columns.map((col) => (
+            {columns.map((col, colIdx) => (
               <span
-                key={col}
+                key={colIdx}
                 className="rounded-md bg-bg px-2 py-0.5 text-xs text-text-mid"
               >
                 {col}
@@ -68,9 +68,9 @@ export function ParsePreview({
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">
-                  {columns.map((col) => (
+                  {columns.map((col, colIdx) => (
                     <th
-                      key={col}
+                      key={colIdx}
                       className="px-2 py-1.5 text-left font-medium text-text-mid"
                     >
                       {col}
@@ -81,9 +81,9 @@ export function ParsePreview({
               <tbody>
                 {sampleRows.slice(0, 5).map((row, i) => (
                   <tr key={i} className="border-b border-border/50">
-                    {columns.map((col) => (
+                    {columns.map((col, colIdx) => (
                       <td
-                        key={col}
+                        key={colIdx}
                         className="max-w-48 truncate px-2 py-1.5 text-text-lt"
                       >
                         {row[col] ?? '-'}

@@ -9,15 +9,21 @@ import { TabNavigation } from '@/components/layout/TabNavigation';
 import { Badge } from '@/components/ui/badge';
 import type { DetectedColumn, ColumnType } from '@/types';
 
-interface BuildDetail {
+interface SavedResponse {
+  id: string;
+  text: string;
+  sentiment: string | null;
+  categories: string | null;
+  confidence: number | null;
+  respondentId: string | null;
+}
+
+interface BuildData {
   id: string;
   name: string;
   version?: string;
   date: string;
-  testType?: string;
-  notes?: string;
-  feedbackCount: number;
-  analysisStatus: string;
+  responses: SavedResponse[];
 }
 
 interface ParseResult {
@@ -36,24 +42,32 @@ const tabs = [
 
 export default function BuildDetailPage() {
   const params = useParams<{ projectId: string; buildId: string }>();
-  const [build, setBuild] = useState<BuildDetail | null>(null);
+  const [build, setBuild] = useState<BuildData | null>(null);
   const [activeTab, setActiveTab] = useState('upload');
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [detectedColumns, setDetectedColumns] = useState<DetectedColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [savedCount, setSavedCount] = useState<number | null>(null);
-  const [skippedCount, setSkippedCount] = useState<number>(0);
-  const [totalRows, setTotalRows] = useState<number>(0);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
+  const fetchBuild = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/builds/${params.buildId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBuild(data);
+      }
+    } catch {
+      // fetch failed
+    } finally {
+      setLoading(false);
+    }
+  }, [params.buildId]);
+
   useEffect(() => {
-    fetch(`/api/builds/${params.buildId}`)
-      .then((res) => res.json())
-      .then((data) => setBuild(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [params.projectId, params.buildId]);
+    fetchBuild();
+  }, [fetchBuild]);
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -79,14 +93,14 @@ export default function BuildDetailPage() {
               fileId: data.file.id,
             });
             setDetectedColumns(firstSheet.columns ?? []);
-            setSavedCount(null);
+            setUploadMessage(null);
           }
         }
       } catch {
         // Upload failed
       }
     },
-    [params.projectId, params.buildId]
+    [params.buildId]
   );
 
   const handleColumnTypeChange = (name: string, newType: ColumnType) => {
@@ -119,11 +133,15 @@ export default function BuildDetailPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSavedCount(data.count);
-        setSkippedCount(data.skippedCount ?? 0);
-        setTotalRows(data.totalRows ?? data.count);
+        const skipped = data.skippedCount ?? 0;
+        setUploadMessage(
+          `${data.totalRows ?? data.count}개 행 중 ${data.count}건 저장${skipped > 0 ? ` (${skipped}개 빈 텍스트 제외)` : ''}`
+        );
         setConfirmError(null);
+        setParseResult(null);
         setActiveTab('responses');
+        // DB에서 최신 응답 목록 리페치
+        await fetchBuild();
       } else {
         const data = await res.json().catch(() => null);
         setConfirmError(data?.error ?? '저장에 실패했습니다.');
@@ -133,13 +151,15 @@ export default function BuildDetailPage() {
     } finally {
       setIsConfirming(false);
     }
-  }, [params.buildId, parseResult, detectedColumns]);
+  }, [params.buildId, parseResult, detectedColumns, fetchBuild]);
 
   if (loading) {
     return (
       <div className="px-8 py-8 text-sm text-text-lt">불러오는 중...</div>
     );
   }
+
+  const responses = build?.responses ?? [];
 
   return (
     <div className="px-8 py-8">
@@ -189,10 +209,51 @@ export default function BuildDetailPage() {
       )}
 
       {activeTab === 'responses' && (
-        <div className="py-12 text-center text-sm text-text-lt">
-          {savedCount != null
-            ? `${totalRows}개 행 중 ${savedCount}건의 응답이 저장되었습니다.${skippedCount > 0 ? ` (${skippedCount}개 빈 텍스트 제외)` : ''}`
-            : '아직 업로드된 응답이 없습니다.'}
+        <div className="space-y-4">
+          {uploadMessage && (
+            <p className="text-sm text-text-mid">{uploadMessage}</p>
+          )}
+
+          {responses.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-bg/50">
+                    <th className="px-4 py-2.5 text-left font-medium text-text-lt">#</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-text-lt">응답 텍스트</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-text-lt">감정</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-text-lt">신뢰도</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {responses.map((r, i) => (
+                    <tr key={r.id} className="border-b border-border/50">
+                      <td className="px-4 py-2 text-text-lt">{i + 1}</td>
+                      <td className="max-w-md truncate px-4 py-2 text-text">{r.text}</td>
+                      <td className="px-4 py-2">
+                        {r.sentiment ? (
+                          <Badge variant="outline" className="text-xs">
+                            {r.sentiment}
+                          </Badge>
+                        ) : (
+                          <span className="text-text-lt">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-text-mid">
+                        {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-sm text-text-lt">
+              아직 업로드된 응답이 없습니다.
+            </div>
+          )}
+
+          <p className="text-xs text-text-lt">총 {responses.length}건</p>
         </div>
       )}
     </div>

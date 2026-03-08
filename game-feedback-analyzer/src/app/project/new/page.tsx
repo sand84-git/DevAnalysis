@@ -24,7 +24,12 @@ export default function NewProjectPage() {
       if (res.ok) {
         const result = await res.json();
         router.push(`/project/${result.id}`);
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.error ?? '프로젝트 생성에 실패했습니다.');
       }
+    } catch {
+      alert('네트워크 오류가 발생했습니다.');
     } finally {
       setIsSubmitting(false);
     }
