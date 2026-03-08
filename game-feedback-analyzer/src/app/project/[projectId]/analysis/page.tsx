@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useCallback } from 'react';
+import { useState, useEffect, use, useCallback, useRef } from 'react';
 import { TabNavigation } from '@/components/layout/TabNavigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import QuoteCard from '@/components/dashboard/QuoteCard';
 import DirectionMatchTable from '@/components/dashboard/DirectionMatchTable';
 import ChecklistSection from '@/components/dashboard/ChecklistSection';
 import AnalysisProgress from '@/components/dashboard/AnalysisProgress';
+import type { StageProgress } from '@/components/dashboard/AnalysisProgress';
 import type {
   AnalysisLevel,
   Sentiment,
@@ -109,6 +110,11 @@ export default function AnalysisPage({
   const [analysisLevel, setAnalysisLevel] = useState<AnalysisLevel>('standard');
   const [analysisStage, setAnalysisStage] = useState('');
   const [completedStages, setCompletedStages] = useState<string[]>([]);
+  const [stageProgress, setStageProgress] = useState<Record<string, StageProgress>>({});
+  const [stageStartTimes, setStageStartTimes] = useState<Record<string, number>>({});
+  const [stageDurations, setStageDurations] = useState<Record<string, number>>({});
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Fetch builds list
   useEffect(() => {
@@ -175,32 +181,105 @@ export default function AnalysisPage({
     fetchCrossAnalysis();
   }, [projectId]);
 
-  // Start analysis
+  // Start analysis via SSE streaming
   const handleStartAnalysis = async () => {
     if (!selectedBuildId) return;
     setAnalyzing(true);
     setCompletedStages([]);
-    setAnalysisStage('classify');
+    setStageProgress({});
+    setStageStartTimes({});
+    setStageDurations({});
+    setAnalysisStage('');
+    setAnalysisError(null);
+
+    const abort = new AbortController();
+    abortRef.current = abort;
 
     try {
-      const res = await fetch('/api/analyze/qualitative', {
+      const res = await fetch('/api/analyze/qualitative/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ buildId: selectedBuildId, level: analysisLevel }),
+        signal: abort.signal,
       });
 
-      if (res.ok) {
-        const result: QualitativeResult = await res.json();
-        setAnalysisData(result);
-        setCompletedStages(['classify', 'user_advocate', 'design_advocate', 'synthesis']);
-        setAnalysisStage('');
-        // Refresh build detail
-        await fetchBuildDetail(selectedBuildId);
+      if (!res.ok || !res.body) {
+        setAnalysisError('분석 시작에 실패했습니다.');
+        setAnalyzing(false);
+        return;
       }
-    } catch {
-      // Handle error
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+
+            if (event.stage === 'done' && event.result) {
+              setAnalysisData(event.result);
+              setAnalysisStage('');
+              await fetchBuildDetail(selectedBuildId);
+              continue;
+            }
+
+            if (event.stage === 'error') {
+              setAnalysisError(event.detail ?? '분석 중 오류가 발생했습니다.');
+              continue;
+            }
+
+            if (event.status === 'started') {
+              setAnalysisStage(event.stage);
+              setStageStartTimes((prev) => ({ ...prev, [event.stage]: Date.now() }));
+            }
+
+            if (event.status === 'progress') {
+              setStageProgress((prev) => ({
+                ...prev,
+                [event.stage]: {
+                  detail: event.detail,
+                  completed: event.completed,
+                  total: event.total,
+                },
+              }));
+            }
+
+            if (event.status === 'completed') {
+              setCompletedStages((prev) =>
+                prev.includes(event.stage) ? prev : [...prev, event.stage]
+              );
+              setStageStartTimes((prev) => {
+                const startTime = prev[event.stage];
+                if (startTime) {
+                  setStageDurations((d) => ({ ...d, [event.stage]: Date.now() - startTime }));
+                }
+                return prev;
+              });
+              // Clear current stage if it matches
+              setAnalysisStage((cur) => (cur === event.stage ? '' : cur));
+            }
+          } catch {
+            // Ignore malformed SSE lines
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setAnalysisError('네트워크 오류가 발생했습니다.');
+      }
     } finally {
       setAnalyzing(false);
+      abortRef.current = null;
     }
   };
 
@@ -344,7 +423,17 @@ export default function AnalysisPage({
         <AnalysisProgress
           currentStage={analysisStage}
           completedStages={completedStages}
+          stageProgress={stageProgress}
+          stageStartTimes={stageStartTimes}
+          stageDurations={stageDurations}
         />
+      )}
+
+      {/* Analysis Error */}
+      {analysisError && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {analysisError}
+        </div>
       )}
 
       {/* Tabs */}

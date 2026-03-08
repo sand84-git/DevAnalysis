@@ -43,6 +43,9 @@ export default function BuildDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [skippedCount, setSkippedCount] = useState<number>(0);
+  const [totalRows, setTotalRows] = useState<number>(0);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/builds/${params.buildId}`)
@@ -92,11 +95,13 @@ export default function BuildDetailPage() {
         col.name === name ? { ...col, type: newType } : col
       )
     );
+    setConfirmError(null);
   };
 
   const handleConfirm = useCallback(async () => {
     if (!parseResult) return;
     setIsConfirming(true);
+    setConfirmError(null);
     try {
       const res = await fetch('/api/upload/confirm', {
         method: 'POST',
@@ -115,10 +120,16 @@ export default function BuildDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setSavedCount(data.count);
+        setSkippedCount(data.skippedCount ?? 0);
+        setTotalRows(data.totalRows ?? data.count);
+        setConfirmError(null);
         setActiveTab('responses');
+      } else {
+        const data = await res.json().catch(() => null);
+        setConfirmError(data?.error ?? '저장에 실패했습니다.');
       }
     } catch {
-      // Confirm failed
+      setConfirmError('네트워크 오류가 발생했습니다.');
     } finally {
       setIsConfirming(false);
     }
@@ -170,6 +181,7 @@ export default function BuildDetailPage() {
                 onConfirm={handleConfirm}
                 isConfirming={isConfirming}
                 rowCount={parseResult.rowCount}
+                error={confirmError}
               />
             </>
           )}
@@ -179,7 +191,7 @@ export default function BuildDetailPage() {
       {activeTab === 'responses' && (
         <div className="py-12 text-center text-sm text-text-lt">
           {savedCount != null
-            ? `${savedCount}건의 응답이 저장되었습니다.`
+            ? `${totalRows}개 행 중 ${savedCount}건의 응답이 저장되었습니다.${skippedCount > 0 ? ` (${skippedCount}개 빈 텍스트 제외)` : ''}`
             : '아직 업로드된 응답이 없습니다.'}
         </div>
       )}

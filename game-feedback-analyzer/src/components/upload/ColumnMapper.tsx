@@ -32,6 +32,7 @@ interface ColumnMapperProps {
   onConfirm?: () => void;
   isConfirming?: boolean;
   rowCount?: number;
+  error?: string | null;
   className?: string;
 }
 
@@ -41,6 +42,7 @@ export function ColumnMapper({
   onConfirm,
   isConfirming = false,
   rowCount = 0,
+  error,
   className,
 }: ColumnMapperProps) {
   if (columns.length === 0) return null;
@@ -96,10 +98,15 @@ export function ColumnMapper({
       </div>
 
       {onConfirm && (
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onConfirm} disabled={isConfirming}>
-            {isConfirming ? '저장 중...' : `응답 ${rowCount}건 저장`}
-          </Button>
+        <div className="mt-4 space-y-2">
+          {error && (
+            <p className="text-xs text-red-500">{error}</p>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={onConfirm} disabled={isConfirming}>
+              {isConfirming ? '저장 중...' : `응답 ${rowCount}건 저장`}
+            </Button>
+          </div>
         </div>
       )}
     </div>

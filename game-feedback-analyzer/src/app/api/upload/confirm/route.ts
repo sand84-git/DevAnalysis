@@ -29,23 +29,25 @@ export async function POST(req: NextRequest) {
     .map((c) => headers.indexOf(c.name))
     .filter((i) => i !== -1);
 
-  if (openTextIndices.length === 0) {
-    return NextResponse.json(
-      { error: '주관식(open_text) 컬럼을 최소 1개 지정해주세요.' },
-      { status: 400 }
-    );
-  }
-
   // meta 컬럼 중 첫 번째를 respondentId로 사용
   const metaIndex = columnMapping
     .filter((c) => c.type === 'meta')
     .map((c) => headers.indexOf(c.name))
     .find((i) => i !== -1);
 
+  // open_text 컬럼이 없으면 모든 비-score/choice/meta 텍스트를 합쳐서 저장
+  // open_text 컬럼이 있으면 해당 컬럼만 사용
+  const textIndices = openTextIndices.length > 0
+    ? openTextIndices
+    : columnMapping
+        .filter((c) => c.type !== 'score')
+        .map((c) => headers.indexOf(c.name))
+        .filter((i) => i !== -1);
+
   // 각 row를 FeedbackResponse로 변환
   const responsesData = rows
     .map((row) => {
-      const textParts = openTextIndices
+      const textParts = textIndices
         .map((i) => row[i])
         .filter((v) => v != null && String(v).trim() !== '');
       const text = textParts.map(String).join('\n\n');
@@ -63,18 +65,31 @@ export async function POST(req: NextRequest) {
 
   if (responsesData.length === 0) {
     return NextResponse.json(
-      { error: '저장할 응답이 없습니다. 주관식 컬럼에 내용이 있는지 확인해주세요.' },
+      { error: '저장할 텍스트 데이터가 없습니다.' },
       { status: 400 }
     );
   }
 
-  // 일괄 생성
+  // 기존 응답 삭제 후 일괄 생성 (중복 방지)
+  await prisma.feedbackResponse.deleteMany({
+    where: { buildId },
+  });
+
+  // 기존 분석 결과도 초기화
+  await prisma.buildAnalysis.deleteMany({
+    where: { buildId },
+  });
+
   const result = await prisma.feedbackResponse.createMany({
     data: responsesData,
   });
 
+  const skippedCount = rows.length - responsesData.length;
+
   return NextResponse.json({
     success: true,
     count: result.count,
+    totalRows: rows.length,
+    skippedCount,
   }, { status: 201 });
 }
