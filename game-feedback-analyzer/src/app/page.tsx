@@ -75,6 +75,9 @@ export default function HomePage() {
               latestBuildName={project.latestBuildName}
               buildCount={project.buildCount}
               openTaskCount={project.openTaskCount}
+              onDelete={(id) =>
+                setProjects((prev) => prev.filter((p) => p.id !== id))
+              }
             />
           ))}
         </div>

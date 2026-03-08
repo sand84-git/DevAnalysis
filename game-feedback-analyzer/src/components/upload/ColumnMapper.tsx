@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectTrigger,
@@ -28,12 +29,18 @@ const columnTypeOptions: { value: ColumnType; label: string }[] = [
 interface ColumnMapperProps {
   columns: DetectedColumn[];
   onTypeChange: (columnName: string, newType: ColumnType) => void;
+  onConfirm?: () => void;
+  isConfirming?: boolean;
+  rowCount?: number;
   className?: string;
 }
 
 export function ColumnMapper({
   columns,
   onTypeChange,
+  onConfirm,
+  isConfirming = false,
+  rowCount = 0,
   className,
 }: ColumnMapperProps) {
   if (columns.length === 0) return null;
@@ -87,6 +94,14 @@ export function ColumnMapper({
           );
         })}
       </div>
+
+      {onConfirm && (
+        <div className="mt-4 flex justify-end">
+          <Button onClick={onConfirm} disabled={isConfirming}>
+            {isConfirming ? '저장 중...' : `응답 ${rowCount}건 저장`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

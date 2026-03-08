@@ -9,7 +9,7 @@ const ACCEPT_TYPES = '.xlsx,.xls,.pdf';
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 interface FileDropzoneProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File) => void | Promise<void>;
   className?: string;
 }
 
@@ -86,7 +86,7 @@ export function FileDropzone({ onFileSelect, className }: FileDropzoneProps) {
     if (!selectedFile) return;
     setUploading(true);
     try {
-      onFileSelect(selectedFile);
+      await onFileSelect(selectedFile);
     } finally {
       setUploading(false);
     }

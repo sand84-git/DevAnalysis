@@ -24,6 +24,9 @@ interface ParseResult {
   rowCount: number;
   languageDistribution: Record<string, number>;
   columns: DetectedColumn[];
+  rows: (string | number | null)[][];
+  headers: string[];
+  fileId: string;
 }
 
 const tabs = [
@@ -38,6 +41,8 @@ export default function BuildDetailPage() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [detectedColumns, setDetectedColumns] = useState<DetectedColumn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`/api/builds/${params.buildId}`)
@@ -59,12 +64,23 @@ export default function BuildDetailPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          const pr = data.parseResult;
-          setParseResult(pr);
-          setDetectedColumns(pr?.columns ?? []);
+          const sheets = data.parseResult;
+          const firstSheet = Array.isArray(sheets) ? sheets[0] : sheets;
+          if (firstSheet) {
+            setParseResult({
+              rowCount: firstSheet.rowCount,
+              languageDistribution: {},
+              columns: firstSheet.columns,
+              rows: firstSheet.rows,
+              headers: firstSheet.headers,
+              fileId: data.file.id,
+            });
+            setDetectedColumns(firstSheet.columns ?? []);
+            setSavedCount(null);
+          }
         }
       } catch {
-        // Upload not yet implemented
+        // Upload failed
       }
     },
     [params.projectId, params.buildId]
@@ -77,6 +93,36 @@ export default function BuildDetailPage() {
       )
     );
   };
+
+  const handleConfirm = useCallback(async () => {
+    if (!parseResult) return;
+    setIsConfirming(true);
+    try {
+      const res = await fetch('/api/upload/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buildId: params.buildId,
+          fileId: parseResult.fileId,
+          columnMapping: detectedColumns.map((c) => ({
+            name: c.name,
+            type: c.type,
+          })),
+          rows: parseResult.rows,
+          headers: parseResult.headers,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSavedCount(data.count);
+        setActiveTab('responses');
+      }
+    } catch {
+      // Confirm failed
+    } finally {
+      setIsConfirming(false);
+    }
+  }, [params.buildId, parseResult, detectedColumns]);
 
   if (loading) {
     return (
@@ -121,6 +167,9 @@ export default function BuildDetailPage() {
               <ColumnMapper
                 columns={detectedColumns}
                 onTypeChange={handleColumnTypeChange}
+                onConfirm={handleConfirm}
+                isConfirming={isConfirming}
+                rowCount={parseResult.rowCount}
               />
             </>
           )}
@@ -129,7 +178,9 @@ export default function BuildDetailPage() {
 
       {activeTab === 'responses' && (
         <div className="py-12 text-center text-sm text-text-lt">
-          아직 업로드된 응답이 없습니다.
+          {savedCount != null
+            ? `${savedCount}건의 응답이 저장되었습니다.`
+            : '아직 업로드된 응답이 없습니다.'}
         </div>
       )}
     </div>
