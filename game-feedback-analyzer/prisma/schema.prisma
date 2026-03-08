@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  directionDoc  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  builds        Build[]
+  categories    Category[]
+  tasks         Task[]
+  crossAnalysis CrossBuildAnalysis?
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  name      String
+  parentId  String?
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Build {
+  id           String   @id @default(cuid())
+  version      String
+  description  String?
+  testType     String
+  testerCount  Int
+  createdAt    DateTime @default(now())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  feedbackFiles FeedbackFile[]
+  responses     FeedbackResponse[]
+  analysis      BuildAnalysis?
+}
+
+model FeedbackFile {
+  id             String   @id @default(cuid())
+  originalName   String
+  storagePath    String
+  mimeType       String
+  rowCount       Int
+  columnMapping  String
+  uploadedAt     DateTime @default(now())
+  buildId        String
+  build          Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
+}
+
+model FeedbackResponse {
+  id            String   @id @default(cuid())
+  respondentId  String
+  rawText       String
+  category      String?
+  sentiment     String?
+  analysisJson  String?
+  buildId       String
+  build         Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  fileId        String?
+}
+
+model BuildAnalysis {
+  id              String   @id @default(cuid())
+  level           String
+  statusJson      String
+  qualitativeJson String?
+  quantitativeJson String?
+  biasJson        String?
+  costJson        String?
+  createdAt       DateTime @default(now())
+  buildId         String   @unique
+  build           Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
+}
+
+model CrossBuildAnalysis {
+  id          String   @id @default(cuid())
+  resultJson  String
+  costJson    String?
+  createdAt   DateTime @default(now())
+  projectId   String   @unique
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  status       String   @default("open")
+  priority     String   @default("medium")
+  category     String?
+  sourceType   String?
+  sourceBuildId String?
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  history      TaskHistory[]
+}
+
+model TaskHistory {
+  id         String   @id @default(cuid())
+  action     String
+  fromStatus String?
+  toStatus   String?
+  note       String?
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model APICallLog {
+  id           String   @id @default(cuid())
+  agent        String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  cachedTokens Int      @default(0)
+  costUSD      Float
+  buildId      String?
+  analysisLevel String?
+  timestamp    DateTime @default(now())
+}
