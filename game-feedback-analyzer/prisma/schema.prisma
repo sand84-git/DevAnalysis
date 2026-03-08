@@ -11,7 +11,7 @@ model Project {
   id            String   @id @default(cuid())
   name          String
   description   String?
-  directionDoc  String
+  directionDoc  String   @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -24,33 +24,44 @@ model Project {
 model Category {
   id        String  @id @default(cuid())
   name      String
-  parentId  String?
+  group     String?
+  order     Int     @default(0)
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model Build {
-  id           String   @id @default(cuid())
-  version      String
-  description  String?
-  testType     String
-  testerCount  Int
-  createdAt    DateTime @default(now())
+  id           String    @id @default(cuid())
+  name         String
+  version      String?
+  date         DateTime
+  notes        String?
+  changes      String?
+  testType     String?
+  testTarget   String?
+  testCount    Int?
+  playTime     String?
+  caution      String?
+  biasProfile  String?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
   projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   feedbackFiles FeedbackFile[]
   responses     FeedbackResponse[]
   analysis      BuildAnalysis?
+  taskHistories TaskHistory[]
 }
 
 model FeedbackFile {
   id             String   @id @default(cuid())
-  originalName   String
-  storagePath    String
-  mimeType       String
-  rowCount       Int
-  columnMapping  String
+  filename       String
+  fileType       String
+  fileSize       Int
+  rawData        Bytes
+  parsedColumns  String?
+  rowCount       Int?
   uploadedAt     DateTime @default(now())
   buildId        String
   build          Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
@@ -58,10 +69,14 @@ model FeedbackFile {
 
 model FeedbackResponse {
   id            String   @id @default(cuid())
-  respondentId  String
-  rawText       String
-  category      String?
+  respondentId  String?
+  text          String
+  categories    String?
   sentiment     String?
+  language      String?
+  confidence    Float?
+  summary       String?
+  isKeyQuote    Boolean  @default(false)
   analysisJson  String?
   buildId       String
   build         Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
@@ -69,16 +84,15 @@ model FeedbackResponse {
 }
 
 model BuildAnalysis {
-  id              String   @id @default(cuid())
-  level           String
-  statusJson      String
-  qualitativeJson String?
+  id               String   @id @default(cuid())
+  analysisLevel    String
+  qualitativeJson  String?
   quantitativeJson String?
-  biasJson        String?
-  costJson        String?
-  createdAt       DateTime @default(now())
-  buildId         String   @unique
-  build           Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  biasJson         String?
+  costJson         String?
+  analyzedAt       DateTime @default(now())
+  buildId          String   @unique
+  build            Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
 }
 
 model CrossBuildAnalysis {
@@ -91,31 +105,35 @@ model CrossBuildAnalysis {
 }
 
 model Task {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  status       String   @default("open")
-  priority     String   @default("medium")
-  category     String?
-  sourceType   String?
-  sourceBuildId String?
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  section         String?
+  currentStatus   String   @default("open")
+  priority        String   @default("P1")
+  discoveredBuildId String?
+  targetBuildId   String?
+  order           Int      @default(0)
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  history      TaskHistory[]
+  histories       TaskHistory[]
 }
 
 model TaskHistory {
   id         String   @id @default(cuid())
-  action     String
-  fromStatus String?
-  toStatus   String?
+  status     String
   note       String?
+  evidence   String?
   taskId     String
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  buildId    String
+  build      Build    @relation(fields: [buildId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+
+  @@unique([taskId, buildId])
 }
 
 model APICallLog {

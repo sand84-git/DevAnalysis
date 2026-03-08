@@ -1,16 +1,8 @@
 import { prisma } from '@/lib/db';
-
-/** Shape expected from Claude API response for cost tracking */
-export interface ClaudeResponseCost {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  costUSD: number;
-}
+import type { ClaudeResponse } from '@/lib/claude';
 
 export async function logAPICost(
-  response: ClaudeResponseCost,
+  response: ClaudeResponse,
   context: {
     agent: string;
     buildId?: string;
@@ -37,20 +29,14 @@ export async function getBuildCostSummary(buildId: string) {
     orderBy: { timestamp: 'desc' },
   });
 
-  const totalCost = logs.reduce((sum, log) => sum + log.costUSD, 0);
-  const byAgent = logs.reduce(
-    (acc, log) => {
-      acc[log.agent] = (acc[log.agent] || 0) + log.costUSD;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  let totalCost = 0;
+  const byAgent: Record<string, number> = {};
+  for (const log of logs) {
+    totalCost += log.costUSD;
+    byAgent[log.agent] = (byAgent[log.agent] || 0) + log.costUSD;
+  }
 
-  return {
-    totalCost,
-    byAgent,
-    callCount: logs.length,
-  };
+  return { totalCost, byAgent, callCount: logs.length };
 }
 
 export async function getMonthlyCostSummary() {
@@ -64,14 +50,12 @@ export async function getMonthlyCostSummary() {
     orderBy: { timestamp: 'desc' },
   });
 
-  const totalCost = logs.reduce((sum, log) => sum + log.costUSD, 0);
-  const byAgent = logs.reduce(
-    (acc, log) => {
-      acc[log.agent] = (acc[log.agent] || 0) + log.costUSD;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  let totalCost = 0;
+  const byAgent: Record<string, number> = {};
+  for (const log of logs) {
+    totalCost += log.costUSD;
+    byAgent[log.agent] = (byAgent[log.agent] || 0) + log.costUSD;
+  }
 
   return {
     totalCost,
