@@ -28,11 +28,39 @@ export async function PATCH(
 ) {
   const { projectId } = await params;
   const body = await req.json();
+  const { categories, ...scalarFields } = body;
 
-  const project = await prisma.project.update({
-    where: { id: projectId },
-    data: body,
+  const project = await prisma.$transaction(async (tx) => {
+    if (Object.keys(scalarFields).length > 0) {
+      await tx.project.update({ where: { id: projectId }, data: scalarFields });
+    }
+
+    if (Array.isArray(categories)) {
+      await tx.category.deleteMany({ where: { projectId } });
+      if (categories.length > 0) {
+        await tx.category.createMany({
+          data: categories.map((name: string, i: number) => ({
+            name,
+            projectId,
+            order: i,
+          })),
+        });
+      }
+    }
+
+    return tx.project.findUnique({
+      where: { id: projectId },
+      include: {
+        builds: { orderBy: { order: 'asc' } },
+        categories: { orderBy: { order: 'asc' } },
+        tasks: true,
+      },
+    });
   });
+
+  if (!project) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   return NextResponse.json(project);
 }

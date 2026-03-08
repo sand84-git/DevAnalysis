@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { X, Plus, Upload, FileText } from 'lucide-react';
+import { X, Plus, Upload, FileText, Loader2, RefreshCw } from 'lucide-react';
 
 interface ProjectFormData {
   name: string;
@@ -42,9 +42,36 @@ export function ProjectForm({
     initialData?.directionDoc ? '기존 문서 있음' : null
   );
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
+
+  const suggestCategories = useCallback(async (docText: string) => {
+    if (!docText.trim()) return;
+    setIsSuggesting(true);
+    setSuggestError(null);
+    try {
+      const res = await fetch('/api/suggest-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directionDoc: docText }),
+      });
+      if (res.ok) {
+        const { categories: suggested } = await res.json();
+        if (Array.isArray(suggested) && suggested.length > 0) {
+          setCategories(suggested);
+        }
+      } else {
+        setSuggestError('카테고리 제안에 실패했습니다.');
+      }
+    } catch {
+      setSuggestError('카테고리 제안 중 오류가 발생했습니다.');
+    } finally {
+      setIsSuggesting(false);
+    }
+  }, []);
 
   const handleFile = useCallback(
     (file: File) => {
@@ -58,10 +85,14 @@ export function ProjectForm({
         const text = e.target?.result as string;
         setDirectionDoc(text);
         setFileName(file.name);
+        // 카테고리가 비어있을 때만 AI 제안 자동 실행 (새 프로젝트 생성 시)
+        if (categories.length === 0) {
+          suggestCategories(text);
+        }
       };
       reader.readAsText(file);
     },
-    [setDirectionDoc]
+    [setDirectionDoc, categories.length, suggestCategories]
   );
 
   const handleDrop = useCallback(
@@ -171,7 +202,29 @@ export function ProjectForm({
       </div>
 
       <div className="space-y-2">
-        <Label>카테고리</Label>
+        <div className="flex items-center justify-between">
+          <Label>카테고리</Label>
+          {directionDoc && (
+            <button
+              type="button"
+              onClick={() => suggestCategories(directionDoc)}
+              disabled={isSuggesting}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-accent1 disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3 ${isSuggesting ? 'animate-spin' : ''}`} />
+              AI 재제안
+            </button>
+          )}
+        </div>
+        {isSuggesting && (
+          <div className="flex items-center gap-2 rounded-md border border-accent1/20 bg-accent1/5 px-3 py-2 text-sm text-accent1">
+            <Loader2 className="size-4 animate-spin" />
+            AI가 기획 문서를 분석하여 카테고리를 제안 중...
+          </div>
+        )}
+        {suggestError && (
+          <p className="text-sm text-danger">{suggestError}</p>
+        )}
         <div className="flex flex-wrap gap-2">
           {categories.map((cat) => (
             <span
